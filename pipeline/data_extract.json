@@ -30,6 +30,56 @@
 					},
 					"firstRowOnly": false
 				}
+			},
+			{
+				"name": "is_wm_entry_available",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "extract_wm",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(activity('extract_wm').output.count, 0)",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "add_wm_entry",
+							"type": "Script",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"linkedServiceName": {
+								"referenceName": "azuresql_ls",
+								"type": "LinkedServiceReference"
+							},
+							"typeProperties": {
+								"scripts": [
+									{
+										"type": "Query",
+										"text": {
+											"value": "INSERT INTO dbo.etl_control\n(\n    source_db,\n    source_schema,\n    source_table,\n    watermark_column,\n    last_successful_watermark\n)\nVALUES\n(\n    '@{pipeline().parameters.db_name}',\n    '@{pipeline().parameters.schema_name}',\n    '@{pipeline().parameters.table_name}',\n    '@{pipeline().parameters.update_col}',\n    '1991-01-01 00:00:00'\n);",
+											"type": "Expression"
+										}
+									}
+								],
+								"scriptBlockExecutionTimeout": "02:00:00"
+							}
+						}
+					]
+				}
 			}
 		],
 		"parameters": {
@@ -43,7 +93,11 @@
 			},
 			"table_name": {
 				"type": "string",
-				"defaultValue": "DimUser"
+				"defaultValue": "DimArtist"
+			},
+			"update_col": {
+				"type": "string",
+				"defaultValue": "updated_at"
 			}
 		},
 		"annotations": []
