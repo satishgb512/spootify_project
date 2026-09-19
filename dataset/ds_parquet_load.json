@@ -16,7 +16,7 @@
 			"location": {
 				"type": "AzureBlobFSLocation",
 				"folderPath": {
-					"value": "concat(\r\n            pipeline().parameters.table_nm,\r\n            '/',\r\n            formatDateTime(utcnow(), 'yyyy'),\r\n            '/',\r\n            formatDateTime(utcnow(), 'MM'),\r\n            '/',\r\n            formatDateTime(utcnow(), 'dd'),\r\n            '/',\r\n            formatDateTime(utcnow(), 'HH')\r\n        )",
+					"value": "@concat(\n    dataset().table_nm,\n    '/',\n    formatDateTime(utcnow(), 'yyyy'),\n    '/',\n    formatDateTime(utcnow(), 'MM'),\n    '/',\n    formatDateTime(utcnow(), 'dd'),\n    '/',\n    formatDateTime(utcnow(), 'HH')\n)",
 					"type": "Expression"
 				},
 				"fileSystem": "bronze"

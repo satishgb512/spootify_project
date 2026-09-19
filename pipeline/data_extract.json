@@ -151,7 +151,7 @@
 								"source": {
 									"type": "AzureSqlSource",
 									"sqlReaderQuery": {
-										"value": "select * from \n@{pipeline().parameters.db_name}.@{pipeline().parameters.schema_name}.@{pipeline().parameters.table_name}\nwhere @{pipeline().parameters.update_col}> '@{activity('extract_wm').output.value[0].last_successful_watermark}'",
+										"value": "@concat(\n    'SELECT * FROM ',\n    pipeline().parameters.db_name,\n    '.',\n    pipeline().parameters.schema_name,\n    '.',\n    pipeline().parameters.table_name,\n    ' WHERE ',\n    pipeline().parameters.update_col,\n    ' > ''',\n    activity('extract_wm').output.value[0].last_successful_watermark,\n    ''''\n)",
 										"type": "Expression"
 									},
 									"queryTimeout": "02:00:00",
@@ -189,7 +189,7 @@
 									"type": "DatasetReference",
 									"parameters": {
 										"table_nm": {
-											"value": "@pipeline().parameters.db_name",
+											"value": "@pipeline().parameters.table_name",
 											"type": "Expression"
 										}
 									}
