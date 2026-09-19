@@ -1,0 +1,51 @@
+{
+	"name": "data_extract",
+	"properties": {
+		"activities": [
+			{
+				"name": "extract_wm",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "select last_successful_watermark from dbo.etl_control\nwhere source_db = '@{pipeline().parameters.db_name}'\nand source_schema = '@{pipeline().parameters.schema_name}'\nand source_table = '@{pipeline().parameters.table_name}'",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "ms_sql_ds",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": false
+				}
+			}
+		],
+		"parameters": {
+			"db_name": {
+				"type": "string",
+				"defaultValue": "spootifydb"
+			},
+			"schema_name": {
+				"type": "string",
+				"defaultValue": "dbo"
+			},
+			"table_name": {
+				"type": "string",
+				"defaultValue": "DimUser"
+			}
+		},
+		"annotations": []
+	}
+}
