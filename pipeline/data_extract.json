@@ -109,7 +109,7 @@
 						{
 							"type": "Query",
 							"text": {
-								"value": "select count(*) as record_count\nfrom @{pipeline().parameters.db_name}.@{pipeline().parameters.schema_name}.@{pipeline().parameters.table_name}",
+								"value": "select count(*) as record_count\nfrom @{pipeline().parameters.db_name}.@{pipeline().parameters.schema_name}.@{pipeline().parameters.table_name}\nWHERE @{pipeline().parameters.update_col} > @{activity('extract_wm').output.value[0].last_successful_watermark}",
 								"type": "Expression"
 							}
 						}
@@ -195,6 +195,78 @@
 									}
 								}
 							]
+						},
+						{
+							"name": "update_wm",
+							"type": "Script",
+							"dependsOn": [
+								{
+									"activity": "load_data",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"linkedServiceName": {
+								"referenceName": "azuresql_ls",
+								"type": "LinkedServiceReference"
+							},
+							"typeProperties": {
+								"scripts": [
+									{
+										"type": "NonQuery",
+										"text": {
+											"value": "@concat(\n    'UPDATE dbo.etl_control ',\n    'SET last_successful_watermark = (',\n        'SELECT MAX(',\n        pipeline().parameters.update_col,\n        ') FROM ',\n        pipeline().parameters.db_name,\n        '.',\n        pipeline().parameters.schema_name,\n        '.',\n        pipeline().parameters.table_name,\n    ') ',\n    'WHERE source_table = ''',\n    pipeline().parameters.table_name,\n    ''''\n)",
+											"type": "Expression"
+										}
+									}
+								],
+								"scriptBlockExecutionTimeout": "02:00:00"
+							}
+						},
+						{
+							"name": "add_entry_in_audit_log",
+							"type": "Script",
+							"dependsOn": [
+								{
+									"activity": "load_data",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"linkedServiceName": {
+								"referenceName": "azuresql_ls",
+								"type": "LinkedServiceReference"
+							},
+							"typeProperties": {
+								"scripts": [
+									{
+										"type": "NonQuery",
+										"text": {
+											"value": "@concat(\n    'INSERT INTO dbo.etl_load_audit ',\n    '(pipeline_run_id, source_db, source_schema, source_table, target_layer, target_path, file_format, watermark_start, status) ',\n    'VALUES (',\n    '''', pipeline().RunId, ''', ',\n    '''', pipeline().parameters.db_name, ''', ',\n    '''', pipeline().parameters.schema_name, ''', ',\n    '''', pipeline().parameters.table_name, ''', ',\n    '''', pipeline().parameters.target_layer, ''', ',\n    '''', pipeline().parameters.table_name, '/',\n    formatDateTime(utcnow(), 'yyyy'), '/',\n    formatDateTime(utcnow(), 'MM'), '/',\n    formatDateTime(utcnow(), 'dd'), '/',\n    formatDateTime(utcnow(), 'HH'), ''', ',\n    '''parquet'', ',\n    '''', activity('extract_wm').output.value[0].last_successful_watermark, ''', ',\n    '''COMPLETED''',\n    ')'\n)",
+											"type": "Expression"
+										}
+									}
+								],
+								"scriptBlockExecutionTimeout": "02:00:00"
+							}
 						}
 					]
 				}
@@ -216,6 +288,9 @@
 			"update_col": {
 				"type": "string",
 				"defaultValue": "updated_at"
+			},
+			"target_layer": {
+				"type": "string"
 			}
 		},
 		"annotations": []
