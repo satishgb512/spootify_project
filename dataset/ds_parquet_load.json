@@ -1,0 +1,57 @@
+{
+	"name": "ds_parquet_load",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "adls_ls",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"table_nm": {
+				"type": "string"
+			}
+		},
+		"annotations": [],
+		"type": "Parquet",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"folderPath": {
+					"value": "concat(\r\n            pipeline().parameters.table_nm,\r\n            '/',\r\n            formatDateTime(utcnow(), 'yyyy'),\r\n            '/',\r\n            formatDateTime(utcnow(), 'MM'),\r\n            '/',\r\n            formatDateTime(utcnow(), 'dd'),\r\n            '/',\r\n            formatDateTime(utcnow(), 'HH')\r\n        )",
+					"type": "Expression"
+				},
+				"fileSystem": "bronze"
+			},
+			"compressionCodec": "snappy"
+		},
+		"schema": [
+			{
+				"name": "track_id",
+				"type": "INT32"
+			},
+			{
+				"name": "track_name",
+				"type": "UTF8"
+			},
+			{
+				"name": "artist_id",
+				"type": "INT32"
+			},
+			{
+				"name": "album_name",
+				"type": "UTF8"
+			},
+			{
+				"name": "duration_sec",
+				"type": "INT32"
+			},
+			{
+				"name": "release_date",
+				"type": "DATE"
+			},
+			{
+				"name": "updated_at",
+				"type": "INT96"
+			}
+		]
+	}
+}
