@@ -109,7 +109,7 @@
 						{
 							"type": "Query",
 							"text": {
-								"value": "select count(*) as record_count\nfrom @{pipeline().parameters.db_name}.@{pipeline().parameters.schema_name}.@{pipeline().parameters.table_name}\nWHERE @{pipeline().parameters.update_col} > @{activity('extract_wm').output.value[0].last_successful_watermark}",
+								"value": "select count(*) as record_count\nfrom @{pipeline().parameters.db_name}.@{pipeline().parameters.schema_name}.@{pipeline().parameters.table_name}\nWHERE @{pipeline().parameters.update_col} > '@{activity('extract_wm').output.value[0].last_successful_watermark}'",
 								"type": "Expression"
 							}
 						}
