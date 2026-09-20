@@ -41,6 +41,11 @@
 				],
 				"userProperties": [],
 				"typeProperties": {
+					"items": {
+						"value": "@activity('table_lookup').output.resultSets[0].rows",
+						"type": "Expression"
+					},
+					"isSequential": true,
 					"activities": [
 						{
 							"name": "data_loader_pip",
@@ -58,15 +63,15 @@
 								"waitOnCompletion": true,
 								"parameters": {
 									"db_name": {
-										"value": "@activity('table_lookup').output.resultSets[0].rows.dbname",
+										"value": "@item().dbname",
 										"type": "Expression"
 									},
 									"schema_name": {
-										"value": "@activity('table_lookup').output.resultSets[0].rows.schemaname",
+										"value": "@item().schemaname",
 										"type": "Expression"
 									},
 									"table_name": {
-										"value": "@activity('table_lookup').output.resultSets[0].rows.Tablename",
+										"value": "@item().Tablename",
 										"type": "Expression"
 									},
 									"update_col": "updated_at",
