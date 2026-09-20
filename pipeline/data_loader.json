@@ -63,15 +63,15 @@
 								"waitOnCompletion": true,
 								"parameters": {
 									"db_name": {
-										"value": "@item().dbname",
+										"value": "@item().db_name",
 										"type": "Expression"
 									},
 									"schema_name": {
-										"value": "@item().schemaname",
+										"value": "@item().schema_name",
 										"type": "Expression"
 									},
 									"table_name": {
-										"value": "@item().Tablename",
+										"value": "@item().table_name",
 										"type": "Expression"
 									},
 									"update_col": "updated_at",
