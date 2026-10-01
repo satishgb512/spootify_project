@@ -1,0 +1,576 @@
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"type": "string",
+			"metadata": "Data Factory name",
+			"defaultValue": "spootify-adf"
+		},
+		"adls_ls_accountKey": {
+			"type": "secureString",
+			"metadata": "Secure string for 'accountKey' of 'adls_ls'"
+		},
+		"azuresql_ls_password": {
+			"type": "secureString",
+			"metadata": "Secure string for 'password' of 'azuresql_ls'"
+		},
+		"adls_ls_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://spootifysa.dfs.core.windows.net/"
+		},
+		"azuresql_ls_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "spootifyserver.database.windows.net"
+		},
+		"azuresql_ls_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "spootifydb"
+		},
+		"azuresql_ls_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "adminsatish"
+		}
+	},
+	"variables": {
+		"factoryId": "[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
+	},
+	"resources": [
+		{
+			"name": "[concat(parameters('factoryName'), '/adls_ls')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureBlobFS",
+				"typeProperties": {
+					"url": "[parameters('adls_ls_properties_typeProperties_url')]",
+					"accountKey": {
+						"type": "SecureString",
+						"value": "[parameters('adls_ls_accountKey')]"
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/azuresql_ls')]",
+			"type": "Microsoft.DataFactory/factories/linkedServices",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"annotations": [],
+				"type": "AzureSqlDatabase",
+				"typeProperties": {
+					"server": "[parameters('azuresql_ls_properties_typeProperties_server')]",
+					"database": "[parameters('azuresql_ls_properties_typeProperties_database')]",
+					"encrypt": "mandatory",
+					"trustServerCertificate": false,
+					"authenticationType": "SQL",
+					"userName": "[parameters('azuresql_ls_properties_typeProperties_userName')]",
+					"password": {
+						"type": "SecureString",
+						"value": "[parameters('azuresql_ls_password')]"
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ds_parquet_load')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "adls_ls",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"table_nm": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "Parquet",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": {
+							"value": "@concat(\n    dataset().table_nm,\n    '/',\n    formatDateTime(utcnow(), 'yyyy'),\n    '/',\n    formatDateTime(utcnow(), 'MM'),\n    '/',\n    formatDateTime(utcnow(), 'dd'),\n    '/',\n    formatDateTime(utcnow(), 'HH')\n)",
+							"type": "Expression"
+						},
+						"fileSystem": "bronze"
+					},
+					"compressionCodec": "snappy"
+				},
+				"schema": [
+					{
+						"name": "track_id",
+						"type": "INT32"
+					},
+					{
+						"name": "track_name",
+						"type": "UTF8"
+					},
+					{
+						"name": "artist_id",
+						"type": "INT32"
+					},
+					{
+						"name": "album_name",
+						"type": "UTF8"
+					},
+					{
+						"name": "duration_sec",
+						"type": "INT32"
+					},
+					{
+						"name": "release_date",
+						"type": "DATE"
+					},
+					{
+						"name": "updated_at",
+						"type": "INT96"
+					}
+				]
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/adls_ls')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/ms_sql_ds')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "azuresql_ls",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "AzureSqlTable",
+				"schema": [],
+				"typeProperties": {}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/azuresql_ls')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/data_extract')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "extract_wm",
+						"type": "Lookup",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "AzureSqlSource",
+								"sqlReaderQuery": {
+									"value": "select last_successful_watermark from dbo.etl_control\nwhere source_db = '@{pipeline().parameters.db_name}'\nand source_schema = '@{pipeline().parameters.schema_name}'\nand source_table = '@{pipeline().parameters.table_name}'",
+									"type": "Expression"
+								},
+								"queryTimeout": "02:00:00",
+								"partitionOption": "None"
+							},
+							"dataset": {
+								"referenceName": "ms_sql_ds",
+								"type": "DatasetReference",
+								"parameters": {}
+							},
+							"firstRowOnly": false
+						}
+					},
+					{
+						"name": "is_wm_entry_available",
+						"type": "IfCondition",
+						"dependsOn": [
+							{
+								"activity": "extract_wm",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"expression": {
+								"value": "@equals(activity('extract_wm').output.count, 0)",
+								"type": "Expression"
+							},
+							"ifTrueActivities": [
+								{
+									"name": "add_wm_entry",
+									"type": "Script",
+									"dependsOn": [],
+									"policy": {
+										"timeout": "0.12:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"linkedServiceName": {
+										"referenceName": "azuresql_ls",
+										"type": "LinkedServiceReference"
+									},
+									"typeProperties": {
+										"scripts": [
+											{
+												"type": "Query",
+												"text": {
+													"value": "INSERT INTO dbo.etl_control\n(\n    source_db,\n    source_schema,\n    source_table,\n    watermark_column,\n    last_successful_watermark\n)\nVALUES\n(\n    '@{pipeline().parameters.db_name}',\n    '@{pipeline().parameters.schema_name}',\n    '@{pipeline().parameters.table_name}',\n    '@{pipeline().parameters.update_col}',\n    '1991-01-01 00:00:00'\n);",
+													"type": "Expression"
+												}
+											}
+										],
+										"scriptBlockExecutionTimeout": "02:00:00"
+									}
+								}
+							]
+						}
+					},
+					{
+						"name": "check_record",
+						"type": "Script",
+						"dependsOn": [
+							{
+								"activity": "is_wm_entry_available",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"linkedServiceName": {
+							"referenceName": "azuresql_ls",
+							"type": "LinkedServiceReference"
+						},
+						"typeProperties": {
+							"scripts": [
+								{
+									"type": "Query",
+									"text": {
+										"value": "select count(*) as record_count\nfrom @{pipeline().parameters.db_name}.@{pipeline().parameters.schema_name}.@{pipeline().parameters.table_name}\nWHERE @{pipeline().parameters.update_col} > '@{activity('extract_wm').output.value[0].last_successful_watermark}'",
+										"type": "Expression"
+									}
+								}
+							],
+							"scriptBlockExecutionTimeout": "02:00:00"
+						}
+					},
+					{
+						"name": "extract_data",
+						"type": "IfCondition",
+						"dependsOn": [
+							{
+								"activity": "check_record",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"expression": {
+								"value": "@greater(activity('check_record').output.resultSets[0].rows[0].record_count,0)",
+								"type": "Expression"
+							},
+							"ifTrueActivities": [
+								{
+									"name": "load_data",
+									"type": "Copy",
+									"dependsOn": [],
+									"policy": {
+										"timeout": "0.12:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"source": {
+											"type": "AzureSqlSource",
+											"sqlReaderQuery": {
+												"value": "@concat(\n    'SELECT * FROM ',\n    pipeline().parameters.db_name,\n    '.',\n    pipeline().parameters.schema_name,\n    '.',\n    pipeline().parameters.table_name,\n    ' WHERE ',\n    pipeline().parameters.update_col,\n    ' > ''',\n    activity('extract_wm').output.value[0].last_successful_watermark,\n    ''''\n)",
+												"type": "Expression"
+											},
+											"queryTimeout": "02:00:00",
+											"partitionOption": "None"
+										},
+										"sink": {
+											"type": "ParquetSink",
+											"storeSettings": {
+												"type": "AzureBlobFSWriteSettings",
+												"copyBehavior": "FlattenHierarchy"
+											},
+											"formatSettings": {
+												"type": "ParquetWriteSettings"
+											}
+										},
+										"enableStaging": false,
+										"translator": {
+											"type": "TabularTranslator",
+											"typeConversion": true,
+											"typeConversionSettings": {
+												"allowDataTruncation": true,
+												"treatBooleanAsNumber": false
+											}
+										}
+									},
+									"inputs": [
+										{
+											"referenceName": "ms_sql_ds",
+											"type": "DatasetReference",
+											"parameters": {}
+										}
+									],
+									"outputs": [
+										{
+											"referenceName": "ds_parquet_load",
+											"type": "DatasetReference",
+											"parameters": {
+												"table_nm": {
+													"value": "@pipeline().parameters.table_name",
+													"type": "Expression"
+												}
+											}
+										}
+									]
+								},
+								{
+									"name": "update_wm",
+									"type": "Script",
+									"dependsOn": [
+										{
+											"activity": "load_data",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "0.12:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"linkedServiceName": {
+										"referenceName": "azuresql_ls",
+										"type": "LinkedServiceReference"
+									},
+									"typeProperties": {
+										"scripts": [
+											{
+												"type": "NonQuery",
+												"text": {
+													"value": "@concat(\n    'UPDATE dbo.etl_control ',\n    'SET last_successful_watermark = (',\n        'SELECT MAX(',\n        pipeline().parameters.update_col,\n        ') FROM ',\n        pipeline().parameters.db_name,\n        '.',\n        pipeline().parameters.schema_name,\n        '.',\n        pipeline().parameters.table_name,\n    ') ',\n    'WHERE source_table = ''',\n    pipeline().parameters.table_name,\n    ''''\n)",
+													"type": "Expression"
+												}
+											}
+										],
+										"scriptBlockExecutionTimeout": "02:00:00"
+									}
+								},
+								{
+									"name": "add_entry_in_audit_log",
+									"type": "Script",
+									"dependsOn": [
+										{
+											"activity": "load_data",
+											"dependencyConditions": [
+												"Succeeded"
+											]
+										}
+									],
+									"policy": {
+										"timeout": "0.12:00:00",
+										"retry": 0,
+										"retryIntervalInSeconds": 30,
+										"secureOutput": false,
+										"secureInput": false
+									},
+									"userProperties": [],
+									"linkedServiceName": {
+										"referenceName": "azuresql_ls",
+										"type": "LinkedServiceReference"
+									},
+									"typeProperties": {
+										"scripts": [
+											{
+												"type": "NonQuery",
+												"text": {
+													"value": "@concat(\n    'INSERT INTO dbo.etl_load_audit ',\n    '(pipeline_run_id, source_db, source_schema, source_table, target_layer, target_path, file_format, watermark_start, status) ',\n    'VALUES (',\n    '''', pipeline().RunId, ''', ',\n    '''', pipeline().parameters.db_name, ''', ',\n    '''', pipeline().parameters.schema_name, ''', ',\n    '''', pipeline().parameters.table_name, ''', ',\n    '''', pipeline().parameters.target_layer, ''', ',\n    '''', pipeline().parameters.table_name, '/',\n    formatDateTime(utcnow(), 'yyyy'), '/',\n    formatDateTime(utcnow(), 'MM'), '/',\n    formatDateTime(utcnow(), 'dd'), '/',\n    formatDateTime(utcnow(), 'HH'), ''', ',\n    '''parquet'', ',\n    '''', activity('extract_wm').output.value[0].last_successful_watermark, ''', ',\n    '''COMPLETED''',\n    ')'\n)",
+													"type": "Expression"
+												}
+											}
+										],
+										"scriptBlockExecutionTimeout": "02:00:00"
+									}
+								}
+							]
+						}
+					},
+					{
+						"name": "Wait1",
+						"type": "Wait",
+						"dependsOn": [],
+						"userProperties": [],
+						"typeProperties": {
+							"waitTimeInSeconds": 30
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"parameters": {
+					"db_name": {
+						"type": "string",
+						"defaultValue": "spootifydb"
+					},
+					"schema_name": {
+						"type": "string",
+						"defaultValue": "dbo"
+					},
+					"table_name": {
+						"type": "string",
+						"defaultValue": "DimArtist"
+					},
+					"update_col": {
+						"type": "string",
+						"defaultValue": "updated_at"
+					},
+					"target_layer": {
+						"type": "string",
+						"defaultValue": "bronze"
+					}
+				},
+				"annotations": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/ms_sql_ds')]",
+				"[concat(variables('factoryId'), '/linkedServices/azuresql_ls')]",
+				"[concat(variables('factoryId'), '/datasets/ds_parquet_load')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/data_loader')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "table_lookup",
+						"type": "Script",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"linkedServiceName": {
+							"referenceName": "azuresql_ls",
+							"type": "LinkedServiceReference"
+						},
+						"typeProperties": {
+							"scripts": [
+								{
+									"type": "Query",
+									"text": "select * from dbo.etl_incremental_config"
+								}
+							],
+							"scriptBlockExecutionTimeout": "02:00:00"
+						}
+					},
+					{
+						"name": "load_incremental",
+						"type": "ForEach",
+						"dependsOn": [
+							{
+								"activity": "table_lookup",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"userProperties": [],
+						"typeProperties": {
+							"items": {
+								"value": "@activity('table_lookup').output.resultSets[0].rows",
+								"type": "Expression"
+							},
+							"isSequential": true,
+							"activities": [
+								{
+									"name": "data_loader_pip",
+									"type": "ExecutePipeline",
+									"dependsOn": [],
+									"policy": {
+										"secureInput": false
+									},
+									"userProperties": [],
+									"typeProperties": {
+										"pipeline": {
+											"referenceName": "data_extract",
+											"type": "PipelineReference"
+										},
+										"waitOnCompletion": true,
+										"parameters": {
+											"db_name": {
+												"value": "@item().db_name",
+												"type": "Expression"
+											},
+											"schema_name": {
+												"value": "@item().schema_name",
+												"type": "Expression"
+											},
+											"table_name": {
+												"value": "@item().table_name",
+												"type": "Expression"
+											},
+											"update_col": "updated_at",
+											"target_layer": "BRONZE"
+										}
+									}
+								}
+							]
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": []
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/azuresql_ls')]",
+				"[concat(variables('factoryId'), '/pipelines/data_extract')]"
+			]
+		}
+	]
+}

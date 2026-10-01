@@ -1,0 +1,33 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"value": "spootify-adf"
+		},
+		"adls_ls_accountKey": {
+			"value": ""
+		},
+		"azuresql_ls_password": {
+			"value": ""
+		},
+		"adls_ls_properties_typeProperties_url": {
+			"value": "https://spootifysa.dfs.core.windows.net/"
+		},
+		"azuresql_ls_properties_typeProperties_server": {
+			"value": "spootifyserver.database.windows.net"
+		},
+		"azuresql_ls_properties_typeProperties_database": {
+			"value": "spootifydb"
+		},
+		"azuresql_ls_properties_typeProperties_userName": {
+			"value": "adminsatish"
+		},
+		"containerUri": {
+			"value": ""
+		},
+		"containerSasToken": {
+			"value": ""
+		}
+	}
+}
