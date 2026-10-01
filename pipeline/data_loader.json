@@ -1,0 +1,88 @@
+{
+	"name": "data_loader",
+	"properties": {
+		"activities": [
+			{
+				"name": "table_lookup",
+				"type": "Script",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "azuresql_ls",
+					"type": "LinkedServiceReference"
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": "select * from dbo.etl_incremental_config"
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			},
+			{
+				"name": "load_incremental",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "table_lookup",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('table_lookup').output.resultSets[0].rows",
+						"type": "Expression"
+					},
+					"isSequential": true,
+					"activities": [
+						{
+							"name": "data_loader_pip",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "data_extract",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"db_name": {
+										"value": "@item().db_name",
+										"type": "Expression"
+									},
+									"schema_name": {
+										"value": "@item().schema_name",
+										"type": "Expression"
+									},
+									"table_name": {
+										"value": "@item().table_name",
+										"type": "Expression"
+									},
+									"update_col": "updated_at",
+									"target_layer": "BRONZE"
+								}
+							}
+						}
+					]
+				}
+			}
+		],
+		"annotations": []
+	}
+}
