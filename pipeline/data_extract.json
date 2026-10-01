@@ -270,6 +270,15 @@
 						}
 					]
 				}
+			},
+			{
+				"name": "Wait1",
+				"type": "Wait",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"waitTimeInSeconds": 30
+				}
 			}
 		],
 		"parameters": {
@@ -290,7 +299,8 @@
 				"defaultValue": "updated_at"
 			},
 			"target_layer": {
-				"type": "string"
+				"type": "string",
+				"defaultValue": "bronze"
 			}
 		},
 		"annotations": []
